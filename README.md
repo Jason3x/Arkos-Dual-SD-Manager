@@ -35,8 +35,8 @@ It also provides automatic save synchronization between the two cards.
 ---
 
 ## 🚀 Installation
-
-1. Download the `ArkOS Dual SD.sh` script.
+ 
+1. Download the `ArkOS Dual SD Manager.sh` script.
 2. Copy it to one of the following directories: `roms/tools`
 3. Launch it from the Tools section on your device.
 
