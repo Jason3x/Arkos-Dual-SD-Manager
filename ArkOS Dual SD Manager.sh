@@ -97,11 +97,10 @@ while true; do
     
     if [ "\$SD2_PRESENT" -eq 1 ]; then
         if [ "\$IS_MERGED" -eq 0 ]; then
-            mount $SD2_PART $MNT_SD2 2>/dev/null
+            mount -o umask=000,uid=1000,gid=1000 $SD2_PART $MNT_SD2 2>/dev/null
             umount -l $FINAL_ROMS 2>/dev/null
     
-            mergerfs -o allow_other,use_ino,cache.files=off,dropcacheonclose=true,category.create=ff \
-                $MNT_SD2:$MNT_SD1 $FINAL_ROMS
+            mergerfs -o allow_other,use_ino,cache.files=off,dropcacheonclose=true,category.create=ff,direct_io,fsname=mergerfs $MNT_SD2:$MNT_SD1 $FINAL_ROMS
             systemctl restart emulationstation
         fi
 
