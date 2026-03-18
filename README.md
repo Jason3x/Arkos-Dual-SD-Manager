@@ -31,7 +31,10 @@ It also provides automatic save synchronization between the two cards.
 ## 📋 Requirements
 
 - Internet connection (first-time install only)
-
+- Supported SD2 card format: `exFAT`, `FAT32`
+- The `tools` and `themes` folders are required.
+- ArkOS system folder are required for games 
+  
 ---
 
 ## 🚀 Installation
