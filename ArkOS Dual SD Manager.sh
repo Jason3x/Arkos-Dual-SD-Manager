@@ -56,6 +56,7 @@ printf "      ========================================\n" > "$CURR_TTY"
 sleep 2
 
 printf "\033c" > "$CURR_TTY"
+
 # --- Fonction pour la progression ---
 smooth_progress() {
     local msg=$1
@@ -97,15 +98,27 @@ while true; do
     
     if [ "\$SD2_PRESENT" -eq 1 ]; then
         if [ "\$IS_MERGED" -eq 0 ]; then
+            # Tentative de montage de la SD2
             mount -o umask=000,uid=1000,gid=1000 $SD2_PART $MNT_SD2 2>/dev/null
-            umount -l $FINAL_ROMS 2>/dev/null
-    
-            mergerfs -o allow_other,use_ino,cache.files=off,dropcacheonclose=true,category.create=ff,direct_io,fsname=mergerfs $MNT_SD2:$MNT_SD1 $FINAL_ROMS
-            systemctl restart emulationstation
+            
+            # --- On verifie si les dossiers existent ---
+            if [ ! -d "$MNT_SD2/tools" ] || [ ! -d "$MNT_SD2/themes" ]; then
+                # Si dossiers manquants : on démonte et on affiche l'erreur
+                umount -l $MNT_SD2 2>/dev/null
+            else
+                # Si tout est OK : on procède à la fusion
+                umount -l $FINAL_ROMS 2>/dev/null
+                mergerfs -o allow_other,use_ino,cache.files=off,dropcacheonclose=true,category.create=ff,direct_io,fsname=mergerfs $MNT_SD2:$MNT_SD1 $FINAL_ROMS
+                systemctl restart emulationstation
+            fi
         fi
 
-        sync_saves
+        # Lancement de la synchro des sauvegardes
+        if mountpoint -q $MNT_SD2; then
+            sync_saves
+        fi
     else
+        # Si la SD2 est retirée
         if [ "\$IS_MERGED" -eq 1 ]; then
             umount -l $FINAL_ROMS 2>/dev/null
             umount -l $MNT_SD2 2>/dev/null
@@ -114,6 +127,7 @@ while true; do
         fi
     fi
     
+    # Sécurité pour s'assurer que /roms est toujours monté sur SD1
     if [ "\$SD2_PRESENT" -eq 0 ] && ! mount | grep -q "$FINAL_ROMS"; then
         mount --bind $MNT_SD1 $FINAL_ROMS
     fi
