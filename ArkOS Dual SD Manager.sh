@@ -4,6 +4,7 @@
 #      ArkOS Dual SD Manager     #
 #            By Jason            #
 #--------------------------------#
+
 # --- Vérification des privilèges root ---
 if [ "$(id -u)" -ne 0 ]; then
     exec sudo -E "$0" "$@"
@@ -85,10 +86,29 @@ mount $SD1_PART $MNT_SD1 2>/dev/null
 
 sync_saves() {
     if mountpoint -q $MNT_SD2; then
+        # Fichiers de sauvegarde pris en charge (.srm, .state, .sav, .png, .cfg, .ini, .json, .dat, .bin, .save)
+        local sync_args=(
+            -rtu
+            --include="*/"
+            --include="*.srm"
+            --include="*.state*"
+            --include="*.sav"
+            --include="*.png"
+            --include="*.cfg"
+            --include="*.ini"
+            --include="*.json"
+            --include="*.dat"
+            --include="*.bin"
+            --include="*.save"
+            --include="*save*/**"
+            --include="*Save*/**"
+            --exclude="*"
+        )
+
         # De SD2 vers SD1 
-        rsync -rtu --include="*/" --include="*.srm" --include="*.state*" --include="*.sav" --include="*.png" --exclude="*" "$MNT_SD2/" "$MNT_SD1/"
+        rsync "\${sync_args[@]}" "$MNT_SD2/" "$MNT_SD1/"
         # De SD1 vers SD2 
-        rsync -rtu --include="*/" --include="*.srm" --include="*.state*" --include="*.sav" --include="*.png" --exclude="*" "$MNT_SD1/" "$MNT_SD2/"
+        rsync "\${sync_args[@]}" "$MNT_SD1/" "$MNT_SD2/"
     fi
 }
 
@@ -98,22 +118,19 @@ while true; do
     
     if [ "\$SD2_PRESENT" -eq 1 ]; then
         if [ "\$IS_MERGED" -eq 0 ]; then
-            # Tentative de montage de la SD2
             mount -o umask=000,uid=1000,gid=1000 $SD2_PART $MNT_SD2 2>/dev/null
             
-            # --- On verifie si les dossiers existent ---
-            if [ ! -d "$MNT_SD2/tools" ] || [ ! -d "$MNT_SD2/themes" ]; then
-                # Si dossiers manquants : on démonte et on affiche l'erreur
-                umount -l $MNT_SD2 2>/dev/null
-            else
-                # Si tout est OK : on procède à la fusion
+            # Vérification des dossiers obligatoires pour activer la fusion
+            if [ -d "$MNT_SD2/tools" ] && [ -d "$MNT_SD2/themes" ]; then
                 umount -l $FINAL_ROMS 2>/dev/null
                 mergerfs -o allow_other,use_ino,cache.files=off,dropcacheonclose=true,category.create=ff,direct_io,fsname=mergerfs $MNT_SD2:$MNT_SD1 $FINAL_ROMS
                 systemctl restart emulationstation
+            else
+                # Si un dossiers est absents, on monte rien
+                :
             fi
         fi
 
-        # Lancement de la synchro des sauvegardes
         if mountpoint -q $MNT_SD2; then
             sync_saves
         fi
@@ -127,7 +144,6 @@ while true; do
         fi
     fi
     
-    # Sécurité pour s'assurer que /roms est toujours monté sur SD1
     if [ "\$SD2_PRESENT" -eq 0 ] && ! mount | grep -q "$FINAL_ROMS"; then
         mount --bind $MNT_SD1 $FINAL_ROMS
     fi
