@@ -16,7 +16,7 @@ It also provides automatic save synchronization between the two cards.
 - Automatic external SD card detection
 
 - Automatic save synchronization for:
-`.srm`<br> `.sav`<br> `.state`<br> `.png`<br>
+`.srm`<br> `.sav`<br> `.state*`<br> `.png`<br> `.cfg`<br> `.ini`<br> `.json`<br> `.dat`<br> `.bin`<br> `*.save`<br> `*save*/**`<br> `*Save*/**`
 
 - The script automatically syncs save files in both directions (This ensures your progress is never lost when switching or removing the external SD card.) :<br>`SD2 → SD1`<br> `SD1 → SD2`<br>  
 
