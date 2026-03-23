@@ -104,7 +104,7 @@ sync_saves() {
             --include="*Save*/**"
             --exclude="*"
         )
-
+    
         # De SD2 vers SD1 
         rsync "\${sync_args[@]}" "$MNT_SD2/" "$MNT_SD1/"
         # De SD1 vers SD2 
@@ -119,11 +119,11 @@ while true; do
     if [ "\$SD2_PRESENT" -eq 1 ]; then
         if [ "\$IS_MERGED" -eq 0 ]; then
             mount -o umask=000,uid=1000,gid=1000 $SD2_PART $MNT_SD2 2>/dev/null
-            
-            # Vérification des dossiers obligatoires pour activer la fusion
+    
+            # Vérification des dossiers obligatoires pour activer la fusion            
             if [ -d "$MNT_SD2/tools" ] && [ -d "$MNT_SD2/themes" ]; then
                 umount -l $FINAL_ROMS 2>/dev/null
-                mergerfs -o allow_other,use_ino,cache.files=off,dropcacheonclose=true,category.create=ff,direct_io,fsname=mergerfs $MNT_SD2:$MNT_SD1 $FINAL_ROMS
+                mergerfs -o allow_other,use_ino,dropcacheonclose=true,category.create=ff,fsname=mergerfs,defaults,nonempty $MNT_SD2:$MNT_SD1 $FINAL_ROMS
                 systemctl restart emulationstation
             else
                 # Si un dossiers est absents, on monte rien
@@ -135,7 +135,7 @@ while true; do
             sync_saves
         fi
     else
-        # Si la SD2 est retirée
+        # Si la SD2 est retirée    
         if [ "\$IS_MERGED" -eq 1 ]; then
             umount -l $FINAL_ROMS 2>/dev/null
             umount -l $MNT_SD2 2>/dev/null
