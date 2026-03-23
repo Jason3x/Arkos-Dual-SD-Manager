@@ -28,13 +28,14 @@ It also provides automatic save synchronization between the two cards.
   
 - The background service checks the SD card status every 10 seconds.
 
-## 📋 Requirements
+## 📋 Requirements/ Important note
 
 - Internet connection (first-time install only)
 - Supported SD2 card format: `exFAT`, `FAT32`
 - The `tools` and `themes` folders are required.
 - ArkOS system folder are required for games
-- Don't use `Switch to SD2 for ROMs` 
+- Don't use `Switch to SD2 for ROMs`
+- `Remove the SD2 card` from the TF2 slot **before updating the cores, portmaster, or firmware.**
   
 ---
 
