@@ -81,11 +81,40 @@ create_daemon() {
     cat <<EOF > "$DAEMON_PATH"
 #!/bin/bash
 
-mkdir -p $MNT_SD1 $MNT_SD2
-mount $SD1_PART $MNT_SD1 2>/dev/null
+# --- Configuration des chemins ---
+ES_CONFIG_DIR="/home/ark/.emulationstation"
+ES_SETTINGS="\$ES_CONFIG_DIR/es_settings.cfg"
+ES_SETTINGS_BAK="/home/ark/es_settings_factory.cfg"
+THEMES_LOCAL_DIR="$MNT_SD1/themes"
+THEMES_LIST_TMP="/home/ark/original_themes_list.txt"
+
+# On s'assurerque les points de montage existent
+mkdir -p "$MNT_SD1" "$MNT_SD2"
+
+# Montage initial de la SD1
+if ! mountpoint -q "$MNT_SD1"; then
+    mount "$SD1_PART" "$MNT_SD1" 2>/dev/null
+fi
+    
+# On vérifie si la SD2 est absente au démarrage pour définir/actualiser la sauvegarde
+if [ ! -b "/dev/mmcblk1p1" ]; then
+    # LA SD2 est absente : on peut créer ou mettre à jour la sauvegarde
+    [ -f "\$ES_SETTINGS" ] && cp "\$ES_SETTINGS" "\$ES_SETTINGS_BAK"
+    ls -1 "\$THEMES_LOCAL_DIR" 2>/dev/null > "\$THEMES_LIST_TMP"
+    echo "Référence SD1 mise à jour" > /tmp/sync_status.log
+else
+    # Si la SD2 est présente : on ne crée la sauvegarde QUE si elle n'existe pas encore
+    if [ ! -f "\$ES_SETTINGS_BAK" ]; then
+        cp "\$ES_SETTINGS" "\$ES_SETTINGS_BAK"
+    fi
+    if [ ! -f "\$THEMES_LIST_TMP" ]; then
+        ls -1 "\$THEMES_LOCAL_DIR" 2>/dev/null > "\$THEMES_LIST_TMP"
+    fi
+    echo "Démarrage avec SD2 : Utilisation de la référence existante" > /tmp/sync_status.log
+fi
 
 sync_saves() {
-    if mountpoint -q $MNT_SD2; then
+    if mountpoint -q "$MNT_SD2"; then
         # Fichiers de sauvegarde pris en charge (.srm, .state, .sav, .png, .cfg, .ini, .json, .dat, .bin, .save)
         local sync_args=(
             -rtu
@@ -105,50 +134,89 @@ sync_saves() {
             --exclude="*"
         )
     
-        # De SD2 vers SD1 
+        # De SD2 vers SD1     
         rsync "\${sync_args[@]}" "$MNT_SD2/" "$MNT_SD1/"
-        # De SD1 vers SD2 
+        # De SD1 vers SD2     
         rsync "\${sync_args[@]}" "$MNT_SD1/" "$MNT_SD2/"
     fi
 }
 
 while true; do
-    SD2_PRESENT=\$(lsblk | grep -c "mmcblk1p1")
+    if [ -b "/dev/mmcblk1p1" ]; then
+        SD2_PRESENT=1
+    else
+        SD2_PRESENT=0
+    fi
+
     IS_MERGED=\$(mount | grep "mergerfs" | grep -c "$FINAL_ROMS")
     
     if [ "\$SD2_PRESENT" -eq 1 ]; then
         if [ "\$IS_MERGED" -eq 0 ]; then
-            mount -o umask=000,uid=1000,gid=1000 $SD2_PART $MNT_SD2 2>/dev/null
+            # Montage de la SD2
+            mount -o umask=000,uid=1000,gid=1000 "$SD2_PART" "$MNT_SD2" 2>/dev/null
     
-            # Vérification des dossiers obligatoires pour activer la fusion            
+    
+            # Vérification des dossiers obligatoires pour activer la fusion                
             if [ -d "$MNT_SD2/tools" ] && [ -d "$MNT_SD2/themes" ]; then
-                umount -l $FINAL_ROMS 2>/dev/null
-                mergerfs -o allow_other,use_ino,dropcacheonclose=true,category.create=ff,fsname=mergerfs,defaults,nonempty $MNT_SD2:$MNT_SD1 $FINAL_ROMS
+                # Fusion MergerFS
+                umount -l "$FINAL_ROMS" 2>/dev/null
+                mergerfs -o allow_other,use_ino,dropcacheonclose=true,category.create=ff,fsname=mergerfs,defaults,nonempty "$MNT_SD2:$MNT_SD1" "$FINAL_ROMS"
+                
+                chmod +x "$FINAL_ROMS"/tools/*.sh 2>/dev/null
+                
+                if [ -d "/opt/system/Tools" ]; then
+                    umount -l /opt/system/Tools 2>/dev/null
+                    mount --bind "$FINAL_ROMS/tools" /opt/system/Tools 2>/dev/null
+                fi
+
                 systemctl restart emulationstation
-            else
-                # Si un dossiers est absents, on monte rien
-                :
+                sync_saves &
             fi
         fi
-
-        if mountpoint -q $MNT_SD2; then
-            sync_saves
-        fi
     else
-        # Si la SD2 est retirée    
+        # Si la SD2 est retirée
         if [ "\$IS_MERGED" -eq 1 ]; then
-            umount -l $FINAL_ROMS 2>/dev/null
-            umount -l $MNT_SD2 2>/dev/null
-            mount --bind $MNT_SD1 $FINAL_ROMS
+            umount -l /opt/system/Tools 2>/dev/null
+            umount -l "$FINAL_ROMS" 2>/dev/null
+            umount -l "$MNT_SD2" 2>/dev/null
+            
+            # Remontage de la SD1 seule
+            mount --bind "$MNT_SD1" "$FINAL_ROMS"
+            
+            if [ -d "/opt/system/Tools" ]; then
+                mount --bind "$FINAL_ROMS/tools" /opt/system/Tools 2>/dev/null
+            fi
+
+            # Restauration du thème d'origine
+            if [ -f "\$ES_SETTINGS_BAK" ]; then
+                cp "\$ES_SETTINGS_BAK" "\$ES_SETTINGS"
+            fi
+
+            # Nettoyage des thèmes orphelins sur SD1
+            if [ -f "\$THEMES_LIST_TMP" ]; then
+                for theme_dir in "\$THEMES_LOCAL_DIR"/*/; do
+                    [ -e "\$theme_dir" ] || continue
+                    theme_name=\$(basename "\$theme_dir")
+                    # On compare avec la liste de référence
+                    if ! grep -qx "\$theme_name" "\$THEMES_LIST_TMP"; then
+                        rm -rf "\$theme_dir"
+                    fi
+                done
+            fi
+            
             systemctl restart emulationstation
         fi
     fi
     
-    if [ "\$SD2_PRESENT" -eq 0 ] && ! mount | grep -q "$FINAL_ROMS"; then
-        mount --bind $MNT_SD1 $FINAL_ROMS
+    # Sécurité boot sans SD2
+    if [ "\$SD2_PRESENT" -eq 0 ] && ! mountpoint -q "$FINAL_ROMS"; then
+        mount --bind "$MNT_SD1" "$FINAL_ROMS"
+        if [ -d "/opt/system/Tools" ] && ! mountpoint -q /opt/system/Tools; then
+             mount --bind "$FINAL_ROMS/tools" /opt/system/Tools 2>/dev/null
+        fi
     fi
     
-    sleep 10
+    sleep 2
 done
 EOF
     chmod +x "$DAEMON_PATH"
