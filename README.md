@@ -23,7 +23,8 @@ It also provides automatic save synchronization between the two cards.
 - Automatic switching between:
 `Internal SD only mode`<br> `Dual SD mode`<br>
 
-  
+- Support for tools sd2 and themes sd2 scripts
+
 - Automatic EmulationStation restart when needed.
   
 - The background service checks the SD card status every 10 seconds.
